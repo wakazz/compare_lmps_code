@@ -1,4 +1,8 @@
 /* -*- c++ -*- ----------------------------------------------------------
+LAST_MODIFIED="2019/09/30 21:09:22" 
+
+   H.M.  7Aug19
+
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    http://lammps.sandia.gov, Sandia National Laboratories
    Steve Plimpton, sjplimp@sandia.gov
@@ -39,7 +43,7 @@ class PairAIREBO : public Pair {
 
   enum { AIREBO, REBO_2, AIREBO_M }; // for telling class variants apart in shared code
 
-protected:
+ protected:
   int *map;                        // 0 (C), 1 (H), or -1 (NULL) for each type
 
   int me,variant;
@@ -122,6 +126,16 @@ protected:
                               double *, double *, double *);
   virtual void spline_init();
 
+  void airebo_v_tally2(int i, int j, double fpair, double *drij);
+  void airebo_v_tally3(int, int, int, double *, double*, double *,
+		       double *, double *, double *);
+  void airebo_v_tally4(int, int, int, int, double *, double *, double *, double *,
+		       double *, double *, double *,
+		       double *, double *, double *);
+  void airebo_ev_tally4(int, int, int, int, double,
+			double *, double *, double *, double *,
+			double *, double *, double *,
+			double *, double *, double *);
   void allocate();
 
   // ----------------------------------------------------------------------

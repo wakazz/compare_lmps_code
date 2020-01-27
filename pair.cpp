@@ -1,4 +1,8 @@
 /* ----------------------------------------------------------------------
+LAST_MODIFIED="2019/10/03 17:12:58" 
+
+   H.M. 7Aug19
+
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    http://lammps.sandia.gov, Sandia National Laboratories
    Steve Plimpton, sjplimp@sandia.gov
@@ -93,6 +97,7 @@ Pair::Pair(LAMMPS *lmp) : Pointers(lmp)
   maxeatom = maxvatom = 0;
   eatom = NULL;
   vatom = NULL;
+  cv = NULL;
 
   num_tally_compute = 0;
   list_tally_compute = NULL;
@@ -107,6 +112,7 @@ Pair::Pair(LAMMPS *lmp) : Pointers(lmp)
   datamask_modify = ALL_MASK;
 
   copymode = 0;
+
 }
 
 /* ---------------------------------------------------------------------- */
@@ -708,7 +714,7 @@ void Pair::read_restart(FILE *)
 void Pair::write_restart(FILE *)
 {
   if (comm->me == 0)
-    error->warning(FLERR,"Pair style restartinfo set but has no restart support");
+    error->warning(FLERR,"Pair style restartinfo set but has no restart support");  
 }
 
 /* -------------------------------------------------------------------
@@ -795,7 +801,8 @@ void Pair::ev_setup(int eflag, int vflag, int alloc)
     maxvatom = atom->nmax;
     if (alloc) {
       memory->destroy(vatom);
-      memory->create(vatom,comm->nthreads*maxvatom,6,"pair:vatom");
+      cv = force->cv;
+      memory->create(vatom,comm->nthreads*maxvatom,cv->size_vatom_cols(),"pair:vatom");
     }
   }
 
@@ -813,14 +820,9 @@ void Pair::ev_setup(int eflag, int vflag, int alloc)
   if (vflag_atom && alloc) {
     n = atom->nlocal;
     if (force->newton) n += atom->nghost;
-    for (i = 0; i < n; i++) {
-      vatom[i][0] = 0.0;
-      vatom[i][1] = 0.0;
-      vatom[i][2] = 0.0;
-      vatom[i][3] = 0.0;
-      vatom[i][4] = 0.0;
-      vatom[i][5] = 0.0;
-    }
+    for (i = 0; i < n; i++)
+      for(int p=0; p<cv->size_vatom_cols(); p++) vatom[i][p] = 0.0;
+
   }
 
   // if vflag_global = 2 and pair::compute() calls virial_fdotr_compute()
@@ -1506,6 +1508,120 @@ void Pair::v_tally_tensor(int i, int j, int nlocal, int newton_pair,
   }
 }
 
+
+void Pair::fv_ev_tally(int i, int j, int nlocal, int newton_pair,
+		       double evdwl, double ecoul, double fpair,
+		       double delx, double dely, double delz)
+{
+  double evdwlhalf,ecoulhalf,epairhalf,v[6];
+
+  if (eflag_either) {
+    if (eflag_global) {
+      if (newton_pair) {
+        eng_vdwl += evdwl;
+        eng_coul += ecoul;
+      } else {
+        evdwlhalf = 0.5*evdwl;
+        ecoulhalf = 0.5*ecoul;
+        if (i < nlocal) {
+          eng_vdwl += evdwlhalf;
+          eng_coul += ecoulhalf;
+        }
+        if (j < nlocal) {
+          eng_vdwl += evdwlhalf;
+          eng_coul += ecoulhalf;
+        }
+      }
+    }
+    if (eflag_atom) {
+      epairhalf = 0.5 * (evdwl + ecoul);
+      if (newton_pair || i < nlocal) eatom[i] += epairhalf;
+      if (newton_pair || j < nlocal) eatom[j] += epairhalf;
+    }
+  }
+
+  if (vflag_either) {
+    v[0] = delx*delx*fpair;
+    v[1] = dely*dely*fpair;
+    v[2] = delz*delz*fpair;
+    v[3] = delx*dely*fpair;
+    v[4] = delx*delz*fpair;
+    v[5] = dely*delz*fpair;
+
+    if (vflag_global) {
+      if (newton_pair) {
+        virial[0] += v[0];
+        virial[1] += v[1];
+        virial[2] += v[2];
+        virial[3] += v[3];
+        virial[4] += v[4];
+        virial[5] += v[5];
+      } else {
+        if (i < nlocal) {
+          virial[0] += 0.5*v[0];
+          virial[1] += 0.5*v[1];
+          virial[2] += 0.5*v[2];
+          virial[3] += 0.5*v[3];
+          virial[4] += 0.5*v[4];
+          virial[5] += 0.5*v[5];
+        }
+        if (j < nlocal) {
+          virial[0] += 0.5*v[0];
+          virial[1] += 0.5*v[1];
+          virial[2] += 0.5*v[2];
+          virial[3] += 0.5*v[3];
+          virial[4] += 0.5*v[4];
+          virial[5] += 0.5*v[5];
+        }
+      }
+    }
+
+    if (vflag_atom) {
+      double fac;
+      int ocv;
+      for(int icv=0; icv<cv->ncvs; icv++){
+	ocv = icv*9;
+	fac=0.5*cv->get_rfraction(icv, atom->x[i][2],atom->x[j][2]);
+	
+	if (newton_pair || i < nlocal) {
+	  vatom[i][0+ocv] += v[0]*fac;
+	  vatom[i][1+ocv] += v[1]*fac;
+	  vatom[i][2+ocv] += v[2]*fac;
+	  vatom[i][3+ocv] += v[3]*fac;
+	  vatom[i][4+ocv] += v[4]*fac;
+	  vatom[i][5+ocv] += v[5]*fac;
+	  vatom[i][6+ocv] += v[3]*fac;
+	  vatom[i][7+ocv] += v[4]*fac;
+	  vatom[i][8+ocv] += v[5]*fac;
+	}
+
+	if (newton_pair || j < nlocal) {
+	  vatom[j][0+ocv] += v[0]*fac;
+	  vatom[j][1+ocv] += v[1]*fac;
+	  vatom[j][2+ocv] += v[2]*fac;
+	  vatom[j][3+ocv] += v[3]*fac;
+	  vatom[j][4+ocv] += v[4]*fac;
+	  vatom[j][5+ocv] += v[5]*fac;
+	  vatom[j][6+ocv] += v[3]*fac;
+	  vatom[j][7+ocv] += v[4]*fac;
+	  vatom[j][8+ocv] += v[5]*fac;
+	}
+      }
+    }
+  }
+
+  if (num_tally_compute > 0) {
+    for (int k=0; k < num_tally_compute; ++k) {
+      Compute *c = list_tally_compute[k];
+      c->pair_tally_callback(i, j, nlocal, newton_pair,
+                             evdwl, ecoul, fpair, delx, dely, delz);
+    }
+  }
+}
+
+
+
+
 /* ----------------------------------------------------------------------
    compute global pair virial via summing F dot r over own & ghost atoms
    at this point, only pairwise forces have been accumulated in atom->f
@@ -1746,7 +1862,13 @@ void Pair::init_bitmap(double inner, double outer, int ntablebits,
 double Pair::memory_usage()
 {
   double bytes = comm->nthreads*maxeatom * sizeof(double);
-  bytes += comm->nthreads*maxvatom*6 * sizeof(double);
+  if(cv == NULL){
+    bytes += comm->nthreads*maxvatom*9* sizeof(double);
+    if(comm->me == 0)
+      error->warning(FLERR,"H.M. : assumed value was set in memory_usage in pair.cpp");
+  }else{
+    bytes += comm->nthreads*maxvatom*cv->size_vatom_cols()* sizeof(double);
+  }
   return bytes;
 }
 

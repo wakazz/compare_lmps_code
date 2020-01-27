@@ -1,4 +1,8 @@
 /* -*- c++ -*- ----------------------------------------------------------
+LAST_MODIFIED="2019/09/30 20:21:09" 
+
+   H.M. 7Aug19
+
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    http://lammps.sandia.gov, Sandia National Laboratories
    Steve Plimpton, sjplimp@sandia.gov

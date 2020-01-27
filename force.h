@@ -1,4 +1,8 @@
 /* -*- c++ -*- ----------------------------------------------------------
+LAST_MODIFIED="2019/09/30 18:53:49" 
+
+   H.M.  7Aug19
+
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    http://lammps.sandia.gov, Sandia National Laboratories
    Steve Plimpton, sjplimp@sandia.gov
@@ -17,6 +21,7 @@
 #include "pointers.h"
 #include <map>
 #include <string>
+#include "control_volume.h"
 
 namespace LAMMPS_NS {
 
@@ -95,6 +100,8 @@ class Force : protected Pointers {
   int special_dihedral;      // 0 if defined dihedrals are ignored
                              // 1 if only weight 1,4 atoms if in a dihedral
   int special_extra;         // extra space for added bonds
+
+  class ControlVolume *cv;
 
   Force(class LAMMPS *);
   ~Force();

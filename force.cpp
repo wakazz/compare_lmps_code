@@ -1,4 +1,8 @@
 /* ----------------------------------------------------------------------
+LAST_MODIFIED="2019/09/30 20:13:04" 
+
+   H.M.  7Aug19
+
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    http://lammps.sandia.gov, Sandia National Laboratories
    Steve Plimpton, sjplimp@sandia.gov
@@ -137,6 +141,11 @@ void _noopt Force::create_factories()
 #include "style_kspace.h"
 #undef KSpaceStyle
 #undef KSPACE_CLASS
+
+
+  int max_cv_regions = 2;
+  cv = new ControlVolume(lmp, max_cv_regions);
+
 }
 
 /* ---------------------------------------------------------------------- */
@@ -172,6 +181,8 @@ Force::~Force()
   delete dihedral_map;
   delete improper_map;
   delete kspace_map;
+
+  delete cv;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -671,7 +682,7 @@ KSpace *Force::new_kspace(const char *style, int trysuffix, int &sflag)
       snprintf(estyle,256,"%s/%s",style,lmp->suffix);
       if (kspace_map->find(estyle) != kspace_map->end()) {
         KSpaceCreator kspace_creator = (*kspace_map)[estyle];
-        return kspace_creator(lmp);
+	return kspace_creator(lmp);
       }
     }
 

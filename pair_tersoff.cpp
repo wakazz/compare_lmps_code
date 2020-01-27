@@ -1,4 +1,8 @@
 /* ----------------------------------------------------------------------
+LAST_MODIFIED "2019/09/30 22:08:31" 
+ 
+  H.M.    7Aug19
+
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    http://lammps.sandia.gov, Sandia National Laboratories
    Steve Plimpton, sjplimp@sandia.gov
@@ -25,6 +29,7 @@
 #include "neigh_list.h"
 #include "neigh_request.h"
 #include "force.h"
+#include "compute.h"
 #include "comm.h"
 #include "memory.h"
 #include "error.h"
@@ -55,6 +60,7 @@ PairTersoff::PairTersoff(LAMMPS *lmp) : Pair(lmp)
 
   maxshort = 10;
   neighshort = NULL;
+
 }
 
 /* ----------------------------------------------------------------------
@@ -88,7 +94,7 @@ void PairTersoff::compute(int eflag, int vflag)
   tagint itag,jtag;
   double xtmp,ytmp,ztmp,delx,dely,delz,evdwl,fpair;
   double rsq,rsq1,rsq2;
-  double delr1[3],delr2[3],fi[3],fj[3],fk[3];
+  double delr1[3],delr2[3],delr3[3],fi[3],fj[3],fk[3];
   double zeta_ij,prefactor;
   int *ilist,*jlist,*numneigh,**firstneigh;
 
@@ -168,7 +174,7 @@ void PairTersoff::compute(int eflag, int vflag)
       f[j][1] -= dely*fpair;
       f[j][2] -= delz*fpair;
 
-      if (evflag) ev_tally(i,j,nlocal,newton_pair,
+      if (evflag) fv_ev_tally(i,j,nlocal,newton_pair,
                            evdwl,0.0,fpair,delx,dely,delz);
     }
 
@@ -218,7 +224,7 @@ void PairTersoff::compute(int eflag, int vflag)
       fjytmp -= delr1[1]*fpair;
       fjztmp -= delr1[2]*fpair;
 
-      if (evflag) ev_tally(i,j,nlocal,newton_pair,
+      if (evflag) fv_ev_tally(i,j,nlocal,newton_pair,
                            evdwl,0.0,-fpair,-delr1[0],-delr1[1],-delr1[2]);
 
       // attractive term via loop over k
@@ -248,7 +254,65 @@ void PairTersoff::compute(int eflag, int vflag)
         f[k][1] += fk[1];
         f[k][2] += fk[2];
 
-        if (vflag_atom) v_tally3(i,j,k,fj,fk,delr1,delr2);
+	if (vflag_atom) {
+	  int ocv;
+	  double facij,facik,facjk;
+	  double rjk[3];
+	  double rijs[3],rikjks[3];
+	  //delr1=rj-ri
+	  //delr2=rk-ri
+	  //rjk = delr1-delr2
+	  rjk[0] =delr1[0]-delr2[0];
+	  rjk[1] =delr1[1]-delr2[1];
+	  rjk[2] =delr1[2]-delr2[2];
+
+	  for(int icv=0; icv<cv->ncvs; icv++){
+	    ocv = icv*9;
+
+	    facij = 0.5*cv->get_rfraction(icv, atom->x[i][2],atom->x[j][2]);
+	    facik = 0.5*cv->get_rfraction(icv, atom->x[i][2],atom->x[k][2]);
+	    facjk = 0.5*cv->get_rfraction(icv, atom->x[j][2],atom->x[k][2]);
+	  
+	    rijs[0] = -delr1[0]*facij;
+	    rijs[1] = -delr1[1]*facij;
+	    rijs[2] = -delr1[2]*facij;
+	    rikjks[0] = -delr2[0]*facik + rjk[0]*facjk;
+	    rikjks[1] = -delr2[1]*facik + rjk[1]*facjk;
+	    rikjks[2] = -delr2[2]*facik + rjk[2]*facjk;
+	    
+	    vatom[i][0+ocv] += rijs[0]*fi[0];
+	    vatom[i][1+ocv] += rijs[1]*fi[1];
+	    vatom[i][2+ocv] += rijs[2]*fi[2];
+	    vatom[i][3+ocv] += rijs[0]*fi[1];
+	    vatom[i][4+ocv] += rijs[0]*fi[2];
+	    vatom[i][5+ocv] += rijs[1]*fi[2];
+	    vatom[i][6+ocv] += rijs[1]*fi[0];
+	    vatom[i][7+ocv] += rijs[2]*fi[0];
+	    vatom[i][8+ocv] += rijs[2]*fi[1];
+	    
+	    vatom[j][0+ocv] -= rijs[0]*fj[0];
+	    vatom[j][1+ocv] -= rijs[1]*fj[1];
+	    vatom[j][2+ocv] -= rijs[2]*fj[2];
+	    vatom[j][3+ocv] -= rijs[0]*fj[1];
+	    vatom[j][4+ocv] -= rijs[0]*fj[2];
+	    vatom[j][5+ocv] -= rijs[1]*fj[2];
+	    vatom[j][6+ocv] -= rijs[1]*fj[0];
+	    vatom[j][7+ocv] -= rijs[2]*fj[0];
+	    vatom[j][8+ocv] -= rijs[2]*fj[1];
+	    
+	    vatom[k][0+ocv] -= rikjks[0]*fk[0];
+	    vatom[k][1+ocv] -= rikjks[1]*fk[1];
+	    vatom[k][2+ocv] -= rikjks[2]*fk[2];
+	    vatom[k][3+ocv] -= rikjks[0]*fk[1];
+	    vatom[k][4+ocv] -= rikjks[0]*fk[2];
+	    vatom[k][5+ocv] -= rikjks[1]*fk[2];
+	    vatom[k][6+ocv] -= rikjks[1]*fk[0];
+	    vatom[k][7+ocv] -= rikjks[2]*fk[0];
+	    vatom[k][8+ocv] -= rikjks[2]*fk[1];
+	  }
+	  //        if (vflag_atom) v_tally3(i,j,k,fj,fk,delr1,delr2);
+	}
+
       }
       f[j][0] += fjxtmp;
       f[j][1] += fjytmp;
@@ -273,6 +337,7 @@ void PairTersoff::allocate()
   memory->create(cutsq,n+1,n+1,"pair:cutsq");
   memory->create(neighshort,maxshort,"pair:neighshort");
   map = new int[n+1];
+
 }
 
 /* ----------------------------------------------------------------------
@@ -372,6 +437,7 @@ void PairTersoff::init_style()
   int irequest = neighbor->request(this,instance_me);
   neighbor->requests[irequest]->half = 0;
   neighbor->requests[irequest]->full = 1;
+
 }
 
 /* ----------------------------------------------------------------------
@@ -807,3 +873,6 @@ void PairTersoff::costheta_d(double *rij_hat, double rij,
   vec3_add(drj,drk,dri);
   vec3_scale(-1.0,dri,dri);
 }
+
+
+

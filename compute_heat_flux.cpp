@@ -1,4 +1,8 @@
 /* ----------------------------------------------------------------------
+LAST_MODIFIED="2019/09/30 20:20:00" 
+
+   H.M.  7Aug19
+
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    http://lammps.sandia.gov, Sandia National Laboratories
    Steve Plimpton, sjplimp@sandia.gov
@@ -145,9 +149,11 @@ void ComputeHeatFlux::compute_vector()
       jc[2] += eng*v[i][2];
       jv[0] -= stress[i][0]*v[i][0] + stress[i][3]*v[i][1] +
         stress[i][4]*v[i][2];
-      jv[1] -= stress[i][3]*v[i][0] + stress[i][1]*v[i][1] +
+
+      jv[1] -= stress[i][6]*v[i][0] + stress[i][1]*v[i][1] +
         stress[i][5]*v[i][2];
-      jv[2] -= stress[i][4]*v[i][0] + stress[i][5]*v[i][1] +
+
+      jv[2] -= stress[i][7]*v[i][0] + stress[i][8]*v[i][1] +
         stress[i][2]*v[i][2];
     }
   }

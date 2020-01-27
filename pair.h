@@ -1,4 +1,8 @@
 /* -*- c++ -*- ----------------------------------------------------------
+LAST_MODIFIED="2019/09/30 15:59:34" 
+
+   H.M. 7Aug19
+
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    http://lammps.sandia.gov, Sandia National Laboratories
    Steve Plimpton, sjplimp@sandia.gov
@@ -15,6 +19,7 @@
 #define LMP_PAIR_H
 
 #include "pointers.h"  // IWYU pragma: export
+//d #include "accelerator_kokkos.h"
 
 namespace LAMMPS_NS {
 
@@ -92,6 +97,10 @@ class Pair : protected Pointers {
   class NeighList *list;         // standard neighbor list used by most pairs
   class NeighList *listhalf;     // half list used by some pairs
   class NeighList *listfull;     // full list used by some pairs
+  //d class NeighList *listhistory;  // neighbor history list used by some pairs
+  //d class NeighList *listinner;    // rRESPA lists used by some pairs
+  //d class NeighList *listmiddle;
+  //d class NeighList *listouter;
 
   int allocated;                 // 0/1 = whether arrays are allocated
                                  //       public so external driver can check
@@ -100,7 +109,6 @@ class Pair : protected Pointers {
   enum{GEOMETRIC,ARITHMETIC,SIXTHPOWER};   // mixing options
 
   int beyond_contact, nondefault_history_transfer;   // for granular styles
-
   // KOKKOS host/device flag and data masks
 
   ExecutionSpace execution_space;
@@ -144,6 +152,7 @@ class Pair : protected Pointers {
   virtual double single(int, int, int, int,
                         double, double, double,
                         double& fforce) {
+
     fforce = 0.0;
     return 0.0;
   }
@@ -169,6 +178,11 @@ class Pair : protected Pointers {
 
   virtual int pack_forward_comm(int, int *, double *, int, int *) {return 0;}
   virtual void unpack_forward_comm(int, int, double *) {}
+//d   virtual int pack_forward_comm_kokkos(int, DAT::tdual_int_2d, 
+//d                                        int, DAT::tdual_xfloat_1d &, 
+//d                                        int, int *) {return 0;};
+//d   virtual void unpack_forward_comm_kokkos(int, int, DAT::tdual_xfloat_1d &) {}
+
   virtual int pack_reverse_comm(int, int, double *) {return 0;}
   virtual void unpack_reverse_comm(int, int *, double *) {}
   virtual double memory_usage();
@@ -197,6 +211,8 @@ class Pair : protected Pointers {
  protected:
   int instance_me;        // which Pair class instantiation I am
 
+  //d  enum{GEOMETRIC,ARITHMETIC,SIXTHPOWER};   // mixing options
+
   int special_lj[4];           // copied from force->special_lj for Kokkos
 
   int suffix_flag;             // suffix compatibility flag
@@ -206,11 +222,11 @@ class Pair : protected Pointers {
   double tabinner;                     // inner cutoff for Coulomb table
   double tabinner_disp;                 // inner cutoff for dispersion table
 
-
+ 
  public:
   // custom data type for accessing Coulomb tables
-
-  typedef union {int i; float f;} union_int_float_t;
+ 
+ typedef union {int i; float f;} union_int_float_t;
 
   // Accessor for the user-intel package to determine virial calc for hybrid
 
@@ -227,6 +243,9 @@ class Pair : protected Pointers {
     if (eflag||vflag) ev_setup(eflag, vflag, alloc);
     else ev_unset();
   }
+
+  class ControlVolume *cv;
+
   virtual void ev_setup(int, int, int alloc = 1);
   void ev_unset();
   void ev_tally_full(int, double, double, double, double, double, double);
@@ -236,6 +255,11 @@ class Pair : protected Pointers {
                  double *, double *, double *, double *, double *, double *);
   void ev_tally_tip4p(int, int *, double *, double, double);
   void v_tally2(int, int, double, double *);
+
+  void fv_ev_tally(int i, int j, int nlocal, int newton_pair,
+		       double evdwl, double ecoul, double fpair,
+		   double delx, double dely, double delz);
+
   void v_tally_tensor(int, int, int, int,
                       double, double, double, double, double, double);
   void virial_fdotr_compute();
