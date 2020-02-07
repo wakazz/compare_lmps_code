@@ -1,5 +1,4 @@
-# compare_lmps_code
-NONE OF THIS IS MY CODE.
+# compare_lmps_code - NONE OF THIS IS MY CODE.
 Modified code belongs to: https://github.com/matsubara0/lammps
 ----
 Want to use GitHub's method of comparing changes to source code.
